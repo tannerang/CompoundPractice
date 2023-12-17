@@ -1,3 +1,10 @@
+### 執行說明
+```bash
+git clone https://github.com/tannerang/CompoundPractice.git
+cd CompoundPractice
+forge test 
+```
+
 # 借貸協議與閃電貸（Flash Loan）
 
 ## 目的：理解區塊鏈的借貸協議怎麼做，以及閃電貸怎麼使用
