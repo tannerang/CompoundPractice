@@ -4,13 +4,14 @@ pragma solidity 0.8.20;
 import { Test, console2 } from "forge-std/Test.sol";
 import { FlashLoanSetUp } from "./SetUp/FlashLoanSetUp.sol";
 import { CToken } from  "../src/CToken.sol";
-import { AaveFlashLoan } from "../src/AaveFlashLoan.sol";
+import { FlashLoanRecipient } from "../src/BalancerFlashLoan.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract FlashLoanTest is FlashLoanSetUp {
+contract BalancerFlashLoanTest is FlashLoanSetUp {
     address user1 = makeAddr("user1");
     address user2 = makeAddr("user2");
     
-    AaveFlashLoan public aaveFlashLoan;
+    FlashLoanRecipient public balancerFlashLoan;
 
     function setUp() public override {
         super.setUp();
@@ -26,13 +27,13 @@ contract FlashLoanTest is FlashLoanSetUp {
         assertEq(address(cUNI), address(allMarkets[1]));
 
         // Initialize AaveFlashLoan
-        aaveFlashLoan = new AaveFlashLoan();
-        uint256 initialBalance = 10 * 10 ** 6;
-        deal(address(USDC), address(aaveFlashLoan), initialBalance);
+        balancerFlashLoan = new FlashLoanRecipient();
+        //uint256 initialBalance = 10 * 10 ** 6;
+        //deal(address(USDC), address(aaveFlashLoan), initialBalance);
         vm.stopPrank();
     }
 
-    function testFlashLoanLiquidation() public {
+    function testBalancerFlashLoanLiquidation() public {
         deal(UNIAddr, user1, 1000 * (10 ** UNI.decimals()));
         deal(USDCAddr, user2, 2500 * (10 ** USDC.decimals()));
         
@@ -94,12 +95,19 @@ contract FlashLoanTest is FlashLoanSetUp {
         uint repayAmount = boorowBalance * closeFactorMantissa / 1e18;
         console2.log("USDC repay amount:", repayAmount);
         
-        // 7. User2 excute liquidating(flashloan) and earn 63.63 USD
-        aaveFlashLoan.execute(user1, user2, address(cUSDC), address(cUNI), repayAmount); 
+        // 7. User2 excute liquidating(flashloan) and earn 64.26 USD, which $0.63 more than AAVE-V3 (63.63 USD)
+        uint[] memory amounts = new uint[](1);
+        amounts[0] = repayAmount;
+        IERC20[] memory tokens = new IERC20[](1);
+        tokens[0] = IERC20(USDCAddr);
+
+        bytes memory userData = abi.encode(user1, user2, address(cUSDC), address(cUNI), repayAmount);
+        balancerFlashLoan.makeFlashLoan(tokens, amounts, userData);
         console2.log("USDC balance of user2 after excute liquidating(flashloan):", USDC.balanceOf(user2));
-        console2.log("User2 earned about", USDC.balanceOf(user2)/1e6, "US Dollar via AAVE-V3.");
-        assertGt(USDC.balanceOf(user2), 63 * 10 ** USDC.decimals());
-        assertLt(USDC.balanceOf(user2), 64 * 10 ** USDC.decimals());
+        console2.log("User2 earned about", USDC.balanceOf(user2)/1e6, "US Dollar via BALANCER.");
+        console2.log("BALANCER's profit is more than AAVE-V3. ($64.26 - $63.63 = $0.63)");
+        assertGt(USDC.balanceOf(user2), 64 * 10 ** USDC.decimals());
+        assertLt(USDC.balanceOf(user2), 65 * 10 ** USDC.decimals());
         vm.stopPrank();
     }
 }
